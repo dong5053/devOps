@@ -1,0 +1,41 @@
+- name: 디스크 포맷 및 마운트
+  hosts: all
+  become: true
+  roles:
+    - disk_setup
+
+- name: Containerd 설치 및 설정
+  hosts: all
+  become: true
+  roles:
+    - containerd_setup   # cri
+
+- name: Kubernetes 구성요소 설치
+  hosts: all
+  become: true
+  roles:
+    - k8s_install         # kubelet, kubeadm, kubectl 설치
+
+- name: Kubernetes 마스터 초기화
+  hosts: master
+  become: true
+  roles:
+    - k8s_init            # --cri-socket=/run/containerd/containerd.sock 포함
+
+- name: Kubernetes 워커 조인
+  hosts: workers
+  become: true
+  roles:
+    - k8s_join
+
+- name: CNI 플러그인 설치 (calico)
+  hosts: master
+  become: true
+  roles:
+    - cni_install
+
+- name: 개발용 Docker 설치
+  hosts: all
+  become: true
+  roles:
+    - docker_setup        # 개발용으로만 사용

@@ -1,0 +1,76 @@
+VAGRANTFILE_API_VERSION = "2"
+
+# Box 정보 및 네트워크 설정
+BOX_NAME = "bento/ubuntu-22.04"
+BOX_VERSION = "202502.21.0"
+BASIC_IP = "192.168.56."
+MASTER_IP = "100"
+WORKER_IP_BASE = 200
+
+# 디스크 크기 (MB 단위)
+EXTRA_DISK_MB = 51200  # 50GB
+
+# vagrant up 여부 확인
+UP_COMMAND = ENV["VAGRANT_COMMAND"] == "up"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = BOX_NAME
+  config.vm.box_version = BOX_VERSION
+  config.vm.boot_timeout = 600
+
+  # 기본 provider 설정
+  config.vm.provider "parallels" do |prl|
+    prl.memory = 4096
+    prl.cpus = 2
+  end
+
+  # Master Node
+  config.vm.define "h-flow-master" do |master|
+    master.vm.hostname = "h-flow-master"
+    master.vm.network "private_network", ip: "#{BASIC_IP}#{MASTER_IP}"
+
+    master.vm.provider "parallels" do |prl|
+      prl.name = "h-flow-master"
+      prl.memory = 8192
+      prl.cpus = 4
+
+      if UP_COMMAND
+        extra_disk_path = File.expand_path("h-flow-master_extra_disk.hdd", __dir__)
+        disk_attached = system("prlctl list -i h-flow-master | grep -q '#{extra_disk_path}'")
+        unless disk_attached
+          puts ">> h-flow-master_extra_disk.hdd 가 연결되지 않아 추가합니다"
+          prl.customize ["set", :id, "--device-add", "hdd", "--image", extra_disk_path]
+        else
+          puts ">> h-flow-master_extra_disk.hdd 이미 장착됨. skip"
+        end
+      end
+    end
+  end
+
+  # Worker Nodes (1 ~ 2)
+  (1..2).each do |i|
+    vm_id = "h-flow-worker#{i}"
+
+    config.vm.define vm_id do |worker|
+      worker.vm.hostname = vm_id
+      worker.vm.network "private_network", ip: "#{BASIC_IP}#{WORKER_IP_BASE + i - 1}"
+
+      worker.vm.provider "parallels" do |prl|
+        prl.name = vm_id
+        prl.memory = 4096
+        prl.cpus = 2
+
+        if UP_COMMAND
+          extra_disk_path = File.expand_path("#{vm_id}_extra_disk.hdd", __dir__)
+          disk_attached = system("prlctl list -i #{vm_id} | grep -q '#{extra_disk_path}'")
+          unless disk_attached
+            puts ">> #{extra_disk_path} 가 연결되지 않아 추가합니다"
+            prl.customize ["set", :id, "--device-add", "hdd", "--image", extra_disk_path]
+          else
+            puts ">> #{extra_disk_path} 이미 장착됨. skip"
+          end
+        end
+      end
+    end
+  end
+end
