@@ -1,0 +1,25 @@
+- name: calico.yaml 파일 존재 여부 확인
+  stat:
+    path: /home/vagrant/calico.yaml
+  register: calico_file_status
+
+- name: calico.yaml 파일이 존재할 때 디버깅 출력
+  debug:
+    msg: "calico.yaml 파일이 이미 존재합니다."
+  when: calico_file_status.stat.exists
+
+- name: calico.yaml 파일이 없을 때만 다운로드
+  get_url:
+    url: https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/calico.yaml
+    dest: /home/vagrant/calico.yaml
+    mode: '0644'
+  when: not calico_file_status.stat.exists
+
+
+- name: Calico 적용
+  command: kubectl apply -f calico.yaml
+  become_user: vagrant
+  args:
+    chdir: /home/vagrant
+  register: calico_apply
+  changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"

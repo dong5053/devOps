@@ -1,0 +1,89 @@
+VAGRANTFILE_API_VERSION = "2"
+
+# 공통 설정
+BOX_NAME = "bento/ubuntu-22.04"
+BOX_VERSION = "202502.21.0"
+BASIC_IP = "192.168.56."
+MASTER_IP = "100"
+WORKER_IP_BASE = 200
+EXTRA_DISK_MB = 51200  # 50GB
+
+# up 여부 확인
+UP_COMMAND = ARGV.include?("up")
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = BOX_NAME
+  config.vm.box_version = BOX_VERSION
+  config.vm.boot_timeout = 600
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.gui = false
+  end
+
+  # h-flow-master 노드
+  config.vm.define "h-flow-master" do |node|
+    node.vm.hostname = "h-flow-master"
+    node.vm.network "private_network", ip: "#{BASIC_IP}#{MASTER_IP}"
+
+    node.vm.provider "virtualbox" do |vb|
+      vb.name = "h-flow-master"
+      vb.memory = 8192
+      vb.cpus = 4
+
+      if UP_COMMAND
+        disk_path = File.expand_path("h-flow-master_disk.vdi", __dir__)
+        unless File.exist?(disk_path)
+          puts ">> 디스크 생성 중: #{disk_path}"
+          system("VBoxManage createmedium disk --filename #{disk_path} --size #{EXTRA_DISK_MB} --format VDI")
+        end
+
+        vb.customize [
+          "storageattach", :id,
+          "--storagectl", "SATA Controller",
+          "--port", "1",
+          "--device", "0",
+          "--type", "hdd",
+          "--medium", disk_path
+        ]
+      end
+    end
+
+    node.vm.synced_folder ".", "/vagrant", mount_options: ["dmode=775", "fmode=664"]
+  end
+
+  # h-flow-worker 노드들
+  (1..2).each do |i|
+    name = "h-flow-worker#{i}"
+    ip = "#{BASIC_IP}#{WORKER_IP_BASE + i - 1}"
+
+    config.vm.define name do |node|
+      node.vm.hostname = name
+      node.vm.network "private_network", ip: ip
+
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = name
+        vb.memory = 4096
+        vb.cpus = 2
+
+        if UP_COMMAND
+          disk_path = File.expand_path("#{name}_disk.vdi", __dir__)
+          unless File.exist?(disk_path)
+            puts ">> 디스크 생성 중: #{disk_path}"
+            system("VBoxManage createmedium disk --filename #{disk_path} --size #{EXTRA_DISK_MB} --format VDI")
+          end
+
+          vb.customize [
+            "storageattach", :id,
+            "--storagectl", "SATA Controller",
+            "--port", "1",
+            "--device", "0",
+            "--type", "hdd",
+            "--medium", disk_path
+          ]
+        end
+      end
+
+      node.vm.synced_folder ".", "/vagrant", mount_options: ["dmode=775", "fmode=664"]
+    end
+  end
+end

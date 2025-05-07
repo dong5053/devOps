@@ -1,0 +1,13 @@
+- name: join 명령어 스크립트로 생성
+  copy:
+    dest: /home/vagrant/kubeadm_join.sh
+    content: |
+      #!/bin/bash
+      {{ hostvars['h-flow-master']['kubeadm_join_command'] }} --cri-socket=unix:///run/containerd/containerd.sock
+    mode: '0755'
+  when: hostvars['h-flow-master']['kubeadm_join_command'] is defined
+
+- name: join 명령어 실행
+  command: /home/vagrant/kubeadm_join.sh
+  args:
+    creates: /etc/kubernetes/kubelet.conf
